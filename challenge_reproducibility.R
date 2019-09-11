@@ -1,3 +1,18 @@
+# Set up environment
+#-------------------
+
+# Make list of packages
+list.of.packages <- c("tidyverse")
+
+# Subset packages that are not installed
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+
+# Install list of uninstalled packages
+if(length(new.packages)) install.packages(new.packages)
+
+# Library all functions
+lapply(list.of.packages, library, character.only = TRUE)
+
 # Load data
 arthropods <- read_csv("cole_arthropod_data_1946.csv")
 
