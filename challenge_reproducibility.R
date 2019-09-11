@@ -62,10 +62,13 @@ spider_pois %>%
   geom_histogram(aes(y = ..density..), alpha = 0.4)
 
 # 5) Add a curve to Plot 2) showing the LGP distribution with the parameter hint below for the sowbug counts
+
 install.packages("RMKdiscrete")
 library(RMKdiscrete)
 lambda2 <- 0.53214
-lambda1 <- sowbugs_count_mean*(1-lambda2)
+lambda1 <- sowbugs_count_mean*(1 - lambda2)
+x <- c(0:17)
+sowbugsmodel<-dLGP(x, lambda1, lambda2)
 
 
 # 6) Add a curve to Plot 3) showing the LGP distribution with the parameter hint below for the weevil eg counts
