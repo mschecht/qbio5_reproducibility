@@ -1,55 +1,90 @@
-# Set up environment
-#-------------------
+#----------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------ Functions -----------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------------------------
 
-# Make list of packages
-list.of.packages <- c("tidyverse")
+#Create function for computing dispersion coefficient: var/mean
+compute_cd <- function(x) {
+  if(any(is.na(x))) {
+    message("Input vectors contains NAs. Will ignore.")
+    x <- na.omit(x)
+  }
+  y <- rep((seq_along(x)-1), times = x)
+  return(var(y)/mean(y))
+}
 
-# Subset packages that are not installed
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+#Create function for computing mean
+#Could be collapsed with the previous function
+compute_empirical_lambda <- function(x) {
+  if(any(is.na(x))) {
+    message("Input vectors contains NAs. Will ignore.")
+    x <- na.omit(x)
+  }
+  y <- rep((seq_along(x)-1), times = x)
+  return(mean(y))
+}
 
-# Install list of uninstalled packages
-if(length(new.packages)) install.packages(new.packages)
+#----------------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------- Analysis -----------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------------------------
 
-# Library all functions
-lapply(list.of.packages, library, character.only = TRUE)
+library(tidyverse)
+library(RMKdiscrete)
 
-# Load data
-arthropods <- read_csv("cole_arthropod_data_1946.csv")
+#Load tables and rename columns to match
+df1 <- read.csv(file = "reproducibility/data/cole_arthropod_data_1946.csv") %>% rename("k_number" = "k_number_of_arthropods")
+df2 <- read.csv(file = "reproducibility/data/mitchell_weevil_egg_data_1975.csv") %>% rename("k_number" = "k_number_of_eggs")
 
-weevil <- read_csv("mitchell_weevil_egg_data_1975.csv")
+#Join the two tables table
+df <- full_join(df1, df2, by = "k_number")
 
-load("pvalueData_PNAS.rda")
+#Compute dispersion coefficients for each species
+#Sowbugs seem to deviate from Poisson distribution (overdispersed)
+dispersion_coefficient <- df %>% select(-1) %>% apply(2, compute_cd)
+empirical_l <- df %>% select(-1) %>% apply(2, compute_empirical_lambda)
+
+#Compute number of observations for each species
+number_of_observations <- df %>% select(-1) %>% colSums(na.rm = TRUE)
+
+#Estimate expected distribution assuming Poisson distribution
+#Adding more columns (k_number, distribution) to prepare for plotting
+theoretical_pmf <- empirical_l %>% sapply(function(x) {dpois(x = df$k_number, lambda = x)})
+theoretical_poisson_distribution <- theoretical_pmf %>% 
+  apply(1, function(x) x*number_of_observations) %>% 
+  t %>% as.data.frame %>% 
+  mutate("k_number" = df$k_number,
+         "distribution" = "Poisson")
+
+#Compute LGP distribution parameters based on hints
+#empirical_l is the mean
+
+l1_spiders <- empirical_l[1]
+l2_spiders <- 0
+
+l2_sowbugs <- 0.53214
+l1_sowbugs <- empirical_l[2]*(1-l2_sowbugs)
 
 
-# 1) Plot the Poisson distribution with the same mean as the spider counts, along with the data
-spider_count_mean <- arthropods$C_count_of_boards_with_k_spiders %>% mean()
+LGP_pmf <- function(k, l1, l2) {
+  return(l1*((l1+k*l2)^(k-1))*(exp(-(l1+k*l2))/factorial(k)))
+}
 
-rpois(n = 1000, lambda = spider_count_mean) %>% hist()
-
-spider_pois <- rpois(n = 1000, lambda = spider_count_mean)
-
-# 2) Plot the Poisson distribution with the same mean as the sowbug counts, along with the data
-sowbugs_count_mean <- arthropods$C_count_of_boards_with_k_sowbugs %>% mean()
-
-rpois(n = 1000, lambda = sowbugs_count_mean) %>% hist()
-
-sowbug_pois <- rpois(n = 1000, lambda = sowbugs_count_mean)
-
-# 3) Plot the Poisson distribution with the same mean as the weevil egg counts, along with the data
-weevil_count_mean <- weevil$C_count_of_beans_with_k_eggs %>% mean()
+err_function <- function(l1,l2) {
+  data <- 
+  LGP_pmf()
+}
 
 
-rpois(n = 1000, lambda = weevil_count_mean) %>% hist()
+plot(df[,3], pch = 16) ; lines()
 
+#Prepare data frame for plotting
+df_melted <- df %>% reshape2::melt(id = "k_number")
+theo_melted <- theoretical_poisson_distribution %>% reshape2::melt(id = c("k_number", "distribution"))
 
-# 4) Add a curve to Plot 1) showing the LGP distribution with the parameter hint below for the spider counts
-spider_pois %>%
-  as_tibble() %>%
-  ggplot(aes(x = value)) +
-  geom_line(aes(y = ..density.., colour = 'Empirical'), stat = 'density') +
-  geom_histogram(aes(y = ..density..), alpha = 0.4)
-
-# 5) Add a curve to Plot 2) showing the LGP distribution with the parameter hint below for the sowbug counts
-
-# 6) Add a curve to Plot 3) showing the LGP distribution with the parameter hint below for the weevil eg counts
-
+#Plot
+ggplot() +
+  geom_point(data = df_melted, 
+             aes(x = k_number, y = value)) + 
+  geom_line(data = theo_melted,
+            aes(x = k_number, y = value, 
+                group = distribution, col = distribution)) +
+  facet_grid(variable~., scales = "free")
