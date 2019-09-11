@@ -1,0 +1,39 @@
+# Load data
+arthropods <- read_csv("cole_arthropod_data_1946.csv")
+
+weevil <- read_csv("mitchell_weevil_egg_data_1975.csv")
+
+load("pvalueData_PNAS.rda")
+
+
+# 1) Plot the Poisson distribution with the same mean as the spider counts, along with the data
+spider_count_mean <- arthropods$C_count_of_boards_with_k_spiders %>% mean()
+
+rpois(n = 1000, lambda = spider_count_mean) %>% hist()
+
+spider_pois <- rpois(n = 1000, lambda = spider_count_mean)
+
+# 2) Plot the Poisson distribution with the same mean as the sowbug counts, along with the data
+sowbugs_count_mean <- arthropods$C_count_of_boards_with_k_sowbugs %>% mean()
+
+
+rpois(n = 1000, lambda = sowbugs_count_mean) %>% hist()
+
+# 3) Plot the Poisson distribution with the same mean as the weevil egg counts, along with the data
+weevil_count_mean <- weevil$C_count_of_beans_with_k_eggs %>% mean()
+
+
+rpois(n = 1000, lambda = weevil_count_mean) %>% hist()
+
+
+# 4) Add a curve to Plot 1) showing the LGP distribution with the parameter hint below for the spider counts
+spider_pois %>%
+  as_tibble() %>%
+  ggplot(aes(x = value)) +
+  geom_line(aes(y = ..density.., colour = 'Empirical'), stat = 'density') +
+  geom_histogram(aes(y = ..density..), alpha = 0.4)
+
+# 5) Add a curve to Plot 2) showing the LGP distribution with the parameter hint below for the sowbug counts
+
+# 6) Add a curve to Plot 3) showing the LGP distribution with the parameter hint below for the weevil eg counts
+
