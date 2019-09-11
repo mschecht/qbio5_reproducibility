@@ -64,17 +64,25 @@ l2_sowbugs <- 0.53214
 l1_sowbugs <- empirical_l[2]*(1-l2_sowbugs)
 
 
-LGP_pmf <- function(k, l1, l2) {
-  return(l1*((l1+k*l2)^(k-1))*(exp(-(l1+k*l2))/factorial(k)))
+
+
+
+
+data_weevil <- df[,3]/sum(df[,3])
+err_function <- function(params) {
+  err <- sum((dLGP(df$k_number, theta = params[1], lambda = params[2]) - data_weevil)^2)
 }
 
-err_function <- function(l1,l2) {
-  data <- 
-  LGP_pmf()
-}
+estimated_params <- optim(par = c(empirical_l[3], 0.1), fn = err_function)$par
+
+plot(df$k_number, df[,3], pch = 16)
+lines(dLGP(df$k_number, theta = estimated_params$par[1], lambda = estimated_params$par[2])*number_of_observations[3])
 
 
-plot(df[,3], pch = 16) ; lines()
+
+
+
+
 
 #Prepare data frame for plotting
 df_melted <- df %>% reshape2::melt(id = "k_number")
