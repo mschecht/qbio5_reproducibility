@@ -23,6 +23,16 @@ compute_empirical_lambda <- function(x) {
   return(mean(y))
 }
 
+#Create a function that estimates LGP parameters using SSE minimization
+estimate_LGP_params <- function(data) {
+  err_function <- function(params) {
+    expected <- dLGP(df$k_number, theta = params[1], lambda = params[2])
+    observed <- data
+    return(sum((observed-expected)^2))
+  }
+  return(optim(par = c(1, -0.5), fn = err_function)$par)
+}
+
 #----------------------------------------------------------------------------------------------------------------------------------
 #------------------------------------------------------------- Analysis -----------------------------------------------------------
 #----------------------------------------------------------------------------------------------------------------------------------
@@ -51,48 +61,79 @@ theoretical_pmf <- empirical_l %>% sapply(function(x) {dpois(x = df$k_number, la
 theoretical_poisson_distribution <- theoretical_pmf %>% 
   apply(1, function(x) x*number_of_observations) %>% 
   t %>% as.data.frame %>% 
+  set_colnames(c("Spiders", "Sowbugs", "Weevil_eggs")) %>% 
   mutate("k_number" = df$k_number,
-         "distribution" = "Poisson")
+         "Model" = "Poisson")
 
 #Compute LGP distribution parameters based on hints
 #empirical_l is the mean
-
 l1_spiders <- empirical_l[1]
 l2_spiders <- 0
 
 l2_sowbugs <- 0.53214
 l1_sowbugs <- empirical_l[2]*(1-l2_sowbugs)
 
+#Estimating weevil parameters minimizing SSE
+lambdas_weevil <- estimate_LGP_params(na.omit(df[,4]/number_of_observations[3]))
+params_table <- data.frame("Spiders" = c(l1_spiders, l2_spiders),
+                           "Sowbugs" = c(l1_sowbugs, l2_sowbugs),
+                           "Weevil_eggs" = lambdas_weevil)
 
+theoretical_LGP_pmf <- params_table %>% 
+  apply(2, function(x) {
+    dLGP(df$k_number, theta = x[1], lambda = x[2])
+  })
 
+theoretical_LGP_distribution <- theoretical_LGP_pmf %>%
+  apply(1, function(x) {
+      x*number_of_observations
+      })%>% t %>% as.data.frame %>% 
+  mutate("k_number" = df$k_number,
+          "Model" = "LGP")
 
-
-
-data_weevil <- df[,3]/sum(df[,3])
-err_function <- function(params) {
-  err <- sum((dLGP(df$k_number, theta = params[1], lambda = params[2]) - data_weevil)^2)
-}
-
-estimated_params <- optim(par = c(empirical_l[3], 0.1), fn = err_function)$par
-
-plot(df$k_number, df[,3], pch = 16)
-lines(dLGP(df$k_number, theta = estimated_params$par[1], lambda = estimated_params$par[2])*number_of_observations[3])
-
-
-
-
-
-
+theoretical_distributions <- rbind(theoretical_poisson_distribution,
+                                   theoretical_LGP_distribution)
 
 #Prepare data frame for plotting
-df_melted <- df %>% reshape2::melt(id = "k_number")
-theo_melted <- theoretical_poisson_distribution %>% reshape2::melt(id = c("k_number", "distribution"))
+df_melted <- df %>%
+  set_colnames(c("k_number", "Spiders", "Sowbugs", "Weevil eggs")) %>% 
+  reshape2::melt(id = "k_number")
+theo_melted <- theoretical_distributions %>% 
+  set_colnames(c("Spiders", "Sowbugs", "Weevil eggs", "k_number", "Model")) %>%
+  reshape2::melt(id = c("k_number", "Model"))
 
 #Plot
 ggplot() +
-  geom_point(data = df_melted, 
-             aes(x = k_number, y = value)) + 
+  geom_bar(data = df_melted, 
+             aes(x = k_number, y = as.numeric(value)),
+           fill = "grey80",
+           col = "grey40",
+           stat = "identity") + 
   geom_line(data = theo_melted,
-            aes(x = k_number, y = value, 
-                group = distribution, col = distribution)) +
-  facet_grid(variable~., scales = "free")
+            aes(x = as.numeric(as.character(k_number)), y = as.numeric(value), 
+                group = Model, col = Model,
+                linetype = Model)) +
+  geom_point(data = theo_melted,
+            aes(x = as.numeric(as.character(k_number)), y = as.numeric(value), 
+                group = Model, col = Model,
+                shape = Model)) +
+  facet_grid(variable~., scales = "free") +
+  ggtitle("Observed and expected distribution") +
+  xlab("Counts") +
+  ylab("Frequency") +
+  theme_bw()
+
+#Compute log-likelihood of each model for all three arthropods
+LL_poisson <- sapply(1:3, function(x) {
+  rep(theoretical_pmf[1:length(na.omit(df[,x+1])),x], times = na.omit(df[,x+1])) %>% log %>% sum
+})
+
+LL_LGP <- sapply(1:3, function(x) {
+  rep(theoretical_LGP_pmf[1:length(na.omit(df[,x+1])),x], times = na.omit(df[,x+1])) %>% log %>% sum
+})
+
+#Compute LRT statistic, should follow a Chi-Square distribution with 2-1=1 degree of freedom
+LRT_statistic <- -2*(LL_poisson-LL_LGP)
+pvalue <- 1-pchisq(q = LRT_statistic, df = 1)
+#LGP model is better than Poisson for Sowbugs and Weevil eggs (adjusted p < 0.001)
+p.adjust(pvalue)
