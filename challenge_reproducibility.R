@@ -21,13 +21,27 @@ weevil <- read_csv("mitchell_weevil_egg_data_1975.csv")
 load("pvalueData_PNAS.rda")
 
 
-# 1) Plot the Poisson distribution with the same mean as the spider counts, along with the data
+# 1, 2 and 3) Plot the Poisson distribution with the same mean as the spider counts, along with the data
 
-#Calculate the mean number of total number of observed spiders
-total_observation_count_spiders <- sum(arthropods[ ,"C_count_of_boards_with_k_spiders"])
-spider_count_mean <- (sum(arthropods$k_number_of_arthropods*arthropods$C_count_of_boards_with_k_spiders))/total_observation_count_spiders
+#General function to calculate the mean number of total number of observed organism
 
-rpois(n = 1000, lambda = spider_count_mean) %>% hist(main = paste("Histogram of" , "Spider Counts"),col="lightblue1", border="blue")
+find_poisson_mean <- function(counts,weights){
+  total_observation_count <- sum(counts)
+  count_mean <- (sum(weights*counts))/total_observation_count
+  return(count_mean)
+}
+
+#Calling the mean function for spiders 
+spider_count_mean <- find_poisson_mean(arthropods$C_count_of_boards_with_k_spiders,arthropods$k_number_of_arthropods)
+
+#Calling the mean function for snowbugs
+snowbugs_count_mean <- find_poisson_mean(arthropods$C_count_of_boards_with_k_sowbugs,arthropods$k_number_of_arthropods)
+
+#Calling the mean function for Weevil 
+weevil_count_mean <- find_poisson_mean(weevil$C_count_of_beans_with_k_eggs,weevil$k_number_of_eggs)
+
+
+rpois(n = 1000, lambda = spider_count_mean) %>% plot(main = paste("Histogram of" , "Spider Counts"),col="lightblue1", border="blue")
 
 spider_pois <- rpois(n = 1000, lambda = spider_count_mean)
 
